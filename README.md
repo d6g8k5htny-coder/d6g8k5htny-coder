@@ -48,6 +48,30 @@ It does not ask readers to trust an AI-generated proof.
 
 **It attempts to make the evidence inspectable.**
 
+
+---
+
+# ◈ Selected Research & Verification Results
+
+The workspace is not only infrastructure. It contains concrete mathematical, computational, and formal artifacts whose scopes are recorded explicitly.
+
+| Area | Current public evidence | Boundary |
+|---|---|---|
+| **Gaussian lifetime coefficients** | Exact/reproducible SIDE24 coefficient package for dimensions 2 and 3 | The coefficient result remains scoped to its stated parent assumptions |
+| **Gaussian critical-point geometry** | Fixed-remote and reviewed fixed-annulus height-window results | Local/scoped results do not imply global elder-pairing closure |
+| **Persistent-homology lifetime program** | Quantitative remainder and critical-point interface packages | Important parent interfaces and global pairing obligations remain explicit |
+| **Formal verification** | Active Lean 4 lanes with kernel replay, axiom auditing, pinned source/toolchain evidence, and adversarial controls | Formal components are not represented as a formalization of the entire research program |
+| **Verification engineering** | Required formal evidence, mutation controls, negative probes, exact-source custody, and fail-closed CI | Engineering success does not change mathematical status |
+
+### Explore the evidence
+
+- **Mathematical results and exact scopes:** [Math-](https://github.com/d6g8k5htny-coder/Math-)
+- **Public verification surface:** [main](https://github.com/d6g8k5htny-coder/main)
+- **Exact-source lookup:** [query-](https://github.com/d6g8k5htny-coder/query-)
+- **Cross-repository map:** [Universal-Law-Workspace](https://github.com/d6g8k5htny-coder/Universal-Law-Workspace)
+
+> **The project distinguishes an interesting result from a completed theorem, and a completed theorem from a broader scientific claim. Read the scope attached to each artifact.**
+
 ---
 
 # ◈ Central Mathematical Program
