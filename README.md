@@ -822,7 +822,7 @@ The objective is a repository whose **epistemic history can be audited**.
 
 Important computational results should increasingly answer:
 
-```text id="0otwqf"
+```text
 WHAT SOURCE?
      │
      ▼
@@ -883,7 +883,7 @@ AI systems dramatically increase the rate at which hypotheses, derivations, code
 
 That creates an unusual problem:
 
-```text id="djwb4a"
+```text
 GENERATION CAPACITY
         ↑
         │
@@ -897,7 +897,7 @@ As generation becomes cheaper, **verification becomes more valuable**.
 
 The architecture is therefore designed around a complementary relationship:
 
-```text id="b64dsg"
+```text
 HUMAN
 │
 ├── chooses objectives
@@ -967,7 +967,7 @@ It is to make previous research **retrievable enough to influence future reasoni
 
 The long-term direction is closer to a graph of mathematical knowledge than a folder of papers.
 
-```text id="f50kl7"
+```text
 DEFINITION
    │
    ├─────────────┐
@@ -1031,7 +1031,7 @@ But machine-readable structure enables:
 
 The ideal is not:
 
-```text id="vhftcr"
+```text
 HUMAN MATHEMATICS
         OR
 MACHINE MATHEMATICS
@@ -1039,7 +1039,7 @@ MACHINE MATHEMATICS
 
 but:
 
-```text id="w4zgul"
+```text
        HUMAN-READABLE
              │
              ▼
@@ -1059,7 +1059,7 @@ A major public-facing objective is to make the research inspectable without requ
 
 The verification surface is intended to expose selected artifacts together with their evidence:
 
-```text id="2fcbj9"
+```text
 CLAIM
  │
  ├── source
@@ -1161,7 +1161,7 @@ It is something closer to:
 
 At sufficient maturity, a researcher encountering a result should be able to move through:
 
-```text id="n0svqw"
+```text
 THEOREM
    ↓
 ASSUMPTIONS
@@ -1236,7 +1236,7 @@ The goal is to make it increasingly possible to determine **why a result should�
 
 # ◈ Principles
 
-```text id="4sjzoz"
+```text
 GENERATE BOLDLY.
 VERIFY AGGRESSIVELY.
 
