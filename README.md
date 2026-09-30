@@ -21,7 +21,7 @@ The aim is to make the work inspectable: full arguments, exact-source references
 
 The work combines human direction, AI-assisted derivation, adversarial review, exact computation and selected Lean 4 formalizations. Results have specific hypotheses and review histories; those scopes travel with each artifact. “Universal Law” names the research workspace, not a claim that a universal law has been discovered.
 
-For the longer technical account and research background, read the [research stack essay](docs/RESEARCH_STACK.md), preserved from the previous profile.
+For the longer technical account and research background, read the [historical research stack essay](docs/RESEARCH_STACK.md), preserved unchanged from the previous profile.
 
 ## Contact and contributions
 
