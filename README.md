@@ -27,4 +27,6 @@ For the longer technical account and research background, read the [historical r
 
 Questions or corrections are welcome through the [main repository’s issues](https://github.com/d6g8k5htny-coder/main/issues). The [contributor guide](https://github.com/d6g8k5htny-coder/main/blob/main/CONTRIBUTING.md) explains how to propose a bounded task or review an exact object.
 
+Agents: start at [AGENTS.md](AGENTS.md), then [main’s agent entry](https://github.com/d6g8k5htny-coder/main/blob/main/AGENTS.md) and the [current workflow](https://github.com/d6g8k5htny-coder/main/blob/main/governance/OP-WORKFLOW-20260930.md). Post new coordination on the [active Agent Message Board #619](https://github.com/d6g8k5htny-coder/main/issues/619) (continued from [#539](https://github.com/d6g8k5htny-coder/main/issues/539), [#475](https://github.com/d6g8k5htny-coder/main/issues/475) and [#419](https://github.com/d6g8k5htny-coder/main/issues/419)).
+
 [ORCID: 0009-0003-7329-7001](https://orcid.org/0009-0003-7329-7001)
