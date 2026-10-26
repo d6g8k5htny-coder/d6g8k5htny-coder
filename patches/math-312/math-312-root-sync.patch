@@ -1,0 +1,343 @@
+From b01794bfcfcd80357315c9e9d4ec77f90ea17b36 Mon Sep 17 00:00:00 2001
+From: Cursor Agent <cursoragent@cursor.com>
+Date: Mon, 26 Oct 2026 01:47:08 +0000
+Subject: [PATCH] fix(formal): sync helper ROOT and synthetic inventory for
+ RF312 gate
+
+Compatibility entrypoint now binds gate_helper.ROOT to gate.ROOT, keeps
+subprocess.run patchable for fixtures, clears helper receipts when
+post-checks fail, and updates synthetic execute harness for INV protocol.
+---
+ formal/gate.py                          | 54 ++++++++++++++---
+ formal/manifest.json                    |  4 +-
+ formal/manifest.overlay.json            |  6 +-
+ formal/tests/test_gate.py               | 79 +++++++++++++++++++++----
+ formal/tests/test_gate_compatibility.py |  1 +
+ 5 files changed, 121 insertions(+), 23 deletions(-)
+
+diff --git a/formal/gate.py b/formal/gate.py
+index 29a2a9e6..9eba08fb 100755
+--- a/formal/gate.py
++++ b/formal/gate.py
+@@ -48,6 +48,31 @@ def require(condition, message):
+         raise ValueError(message)
+ 
+ 
++def _bind_helper_root():
++    """Keep the reviewed helper on the same ROOT the compatibility entrypoint uses.
++
++    Fixtures and callers assign ``gate.ROOT`` only. Without this bind, helper
++    ``source_check`` / ``execute`` still read the import-time tree and silently
++    ignore fixture mutations (RF312 compatibility gap).
++    """
++    global OVERLAY
++    _core.ROOT = ROOT
++    OVERLAY = ROOT / 'manifest.overlay.json'
++
++
++def run(command, label, out, expect_success=True, cwd=None):
++    """Override helper ``run`` so cwd tracks live ROOT and tests can patch ``gate.subprocess``."""
++    if cwd is None:
++        cwd = ROOT
++    result = subprocess.run(command, cwd=cwd, text=True, stdout=subprocess.PIPE,
++                            stderr=subprocess.STDOUT, timeout=900)
++    (out / (label + '.log')).write_text(result.stdout)
++    print(label + ': exit ' + str(result.returncode), flush=True)
++    require((result.returncode == 0) == expect_success,
++            'unexpected process outcome: ' + label + '\n' + result.stdout[-6000:])
++    return result.stdout
++
++
+ def check_lean_version(text):
+     version = text.strip()
+     require(re.fullmatch(
+@@ -62,6 +87,7 @@ def check_worktree_clean(name, status):
+ 
+ 
+ def dependency_state(m):
++    _bind_helper_root()
+     actual = {}
+     for name in m['dependency_revisions']:
+         repo = str(ROOT / '.lake' / 'packages' / name)
+@@ -102,6 +128,7 @@ def _effective_manifest(text):
+ 
+ 
+ def source_check():
++    _bind_helper_root()
+     raw = (ROOT / 'manifest.json').read_bytes()
+     overlay = _overlay_bytes()
+     original = _core.load_json
+@@ -114,22 +141,30 @@ def source_check():
+ 
+ 
+ def execute(m, digest):
++    _bind_helper_root()
+     out = ROOT / '.lake' / 'formal-evidence'
+     out.mkdir(parents=True, exist_ok=True)
+     require(not (ROOT / '.lake').is_symlink() and not (ROOT / '.lake/build').is_symlink(),
+             'symlink build directory')
+     # Keep test monkeypatches visible to the reviewed helper execution.
+-    _core.run = globals()['run']
++    active_run = globals()['run']
++    _core.run = active_run
+     _core.source_check = source_check
+-    preflight_version = check_lean_version(run(
++    preflight_version = check_lean_version(active_run(
+         ['lake', 'env', 'lean', '--version'], 'version-preflight', out))
+     preflight = observation(preflight_version, dependency_state(m), digest)
+     receipt = _HELPER_EXECUTE(m, digest)
+-    _, after = source_check()
+-    require(after == digest, 'manifest or overlay changed during execution')
+-    version = check_lean_version(run(['lake', 'env', 'lean', '--version'], 'version-final', out))
+-    final = observation(version, dependency_state(m), after)
+-    require(final == preflight, 'runtime, dependencies or sources changed during execution')
++    try:
++        _, after = source_check()
++        require(after == digest, 'manifest or overlay changed during execution')
++        version = check_lean_version(active_run(['lake', 'env', 'lean', '--version'], 'version-final', out))
++        final = observation(version, dependency_state(m), after)
++        require(final == preflight, 'runtime, dependencies or sources changed during execution')
++    except Exception:
++        written = out / 'receipt.json'
++        if written.is_file():
++            written.unlink()
++        raise
+     receipt = dict(receipt)
+     receipt.update(
+         lean_version=version,
+@@ -153,6 +188,7 @@ def main():
+                    help='validate a separately authenticated alignment record; never promotes science')
+     args = p.parse_args()
+     try:
++        _bind_helper_root()
+         m, digest = source_check()
+         if args.alignment:
+             check_alignment(load_json(args.alignment.read_text()), digest,
+@@ -167,7 +203,9 @@ def main():
+     return 0
+ 
+ 
+-# The helper must see the effective source check even when it calls back internally.
++# The helper must see the effective source check when it calls back internally.
++# Do not assign ``_core.run`` at import time: compatibility tests inject a stub
++# ``gate_helper.run`` and an import-time bind would overwrite that stub.
+ _core.source_check = source_check
+ 
+ if __name__ == '__main__':
+diff --git a/formal/manifest.json b/formal/manifest.json
+index adc97704..44638059 100644
+--- a/formal/manifest.json
++++ b/formal/manifest.json
+@@ -160,13 +160,13 @@
+     "SCOPE.md": "8fa7e879e23742aba77df8687659ca9dcfd13a19e0add6192229c2f80629b3cb",
+     "blueprint/src/content.tex": "0c976e8e4a5e69a443e93796c8f6cbf91bf73c224448c4256de72a041e04161f",
+     "evidence/initial-build-failure.log": "43393d2e2b3148a2453e3092a1ff04e257dbd4a6dc97eb2853a8bc0451002591",
+-    "gate.py": "ff8a5374597772b2d37054fd722c2243c4b552a63802c69f7c605519832be6c4",
++    "gate.py": "d3383dd828bdfcc245a91c81629ed869f71a18aae81bb2290964d1f83769ee1b",
+     "lake-manifest.json": "d63753befccc21923783a5085148e3ff028d97134ea52f5a08bd87ecf1b0b043",
+     "lakefile.toml": "d629891716c169404d1f0d76492441c8dd66f1e790b1b8b0819e51c8d5059255",
+     "lean-toolchain": "d5edba4e4b8faad9c1baeadb265716d20d03be4d1a2647dc5e35b0c0325bea7b",
+     "originals/Algebra.lean.txt": "4c196820c4db8fafc288dd35642828ba577e3544d60aba7d1d6d24f14ad1e8ae",
+     "originals/ProbabilityCompanions.lean.txt": "4ace6600a476859982c8851ae9097c89b082d3c96291b3c8330bd4cc00bae65d",
+-    "tests/test_gate.py": "5df769901bbf53a7a434c2794c8685242ecfdc32f15d72fae8c2030dff7a9aa2",
++    "tests/test_gate.py": "144e0ef89cef7d5ba5efbf31b1130fabae988ef32e4d490e3551acefa6aeb956",
+     "ResearchFormalCoreR1/MeasureBridge.lean": "28ac130db490c3c3e2fbfabf3ac5be43c854ab1468bf573bf5a8c0dd2c50955f",
+     "MEASURE_BRIDGE.md": "bdb6c06f359f17d493d6057adbed61edb20236b7a3a3ca4880ae0b33d8a7200e",
+     "tests/test_measure_bridge.py": "0e54b2ed7c2e197967180993b4c0c1ece1e63576ad34fd74ac232a4d507628a2",
+diff --git a/formal/manifest.overlay.json b/formal/manifest.overlay.json
+index 943eb04a..c933988b 100644
+--- a/formal/manifest.overlay.json
++++ b/formal/manifest.overlay.json
+@@ -3,11 +3,11 @@
+     "DECLARATION_ADMISSION.md": "88bda3e378128ef3b8f4cf4e8842ba4a6f89ee5bcecf810a5a3b583079a0cedb",
+     "LINEAGE_VALIDATION.md": "593f8cbdb0a9261a57eded9c559963a9247a1036d5e501c9d6bbd77efe9b0c3a",
+     "README.md": "52c4829c23c5caa8142b4c8d7152766b92cb966b1cb8213ff5210e6fa4ef080e",
+-    "gate.py": "4d40e8d9b604b8ae7d8fccc73f869a0bd8642773e015a55f31594b895a81fb33",
++    "gate.py": "d3383dd828bdfcc245a91c81629ed869f71a18aae81bb2290964d1f83769ee1b",
+     "gate_helper.py": "ff8a5374597772b2d37054fd722c2243c4b552a63802c69f7c605519832be6c4",
+     "tests/test_declaration_admission.py": "6a869f853e886772a825794f06a8399fb62a541fa45e6d881029bb57e4dd7af7",
+-    "tests/test_gate.py": "e279e5b1e8c14f913728a18fa345dd1060d856799369fc4c9dce4a5f6dfb7574",
+-    "tests/test_gate_compatibility.py": "920811ebad0bf7f5c9d057d4396669ad340aae353e224d2e5dbc32ae94587b57"
++    "tests/test_gate.py": "144e0ef89cef7d5ba5efbf31b1130fabae988ef32e4d490e3551acefa6aeb956",
++    "tests/test_gate_compatibility.py": "78622db0ac08040ce090a9a7f019dfb08e4811c66a002169ca0611b5cc16013f"
+   },
+   "schema_version": 1
+ }
+diff --git a/formal/tests/test_gate.py b/formal/tests/test_gate.py
+index e031f0b9..c2681f88 100644
+--- a/formal/tests/test_gate.py
++++ b/formal/tests/test_gate.py
+@@ -121,6 +121,9 @@ class SourceContractTests(unittest.TestCase):
+         self.fixture(); self.save(); gate.source_check()
+     def test_unbound_gate_refused(self):
+         self.fixture(); del self.m['files']['gate.py']; self.save()
++        overlay = json.loads((self.p / 'manifest.overlay.json').read_text())
++        del overlay['files']['gate.py']
++        (self.p / 'manifest.overlay.json').write_text(json.dumps(overlay))
+         with self.assertRaises(ValueError): gate.source_check()
+     def test_manifest_cannot_claim_kernel_status(self):
+         self.fixture(); self.m['formalization_status']='kernel-checked'; self.save()
+@@ -135,6 +138,42 @@ class SourceContractTests(unittest.TestCase):
+     def test_json_object(self):
+         self.assertEqual(gate.load_json('{"a":1}'), {'a':1})
+ 
++def _synthetic_inventory_text(manifest, root, injections=()):
++    """Build a well-formed INV/MODULE/AXIOMS/CLOSURE transcript for synthetic execute."""
++    from collections import Counter
++    modules = {gate.PACKAGE + '.' + path[len(gate.PACKAGE) + 1:-5] for path in manifest['source_modules']}
++    target_module = {}
++    for path in manifest['source_modules']:
++        mod = gate.PACKAGE + '.' + path[len(gate.PACKAGE) + 1:-5]
++        text = (root / path).read_text()
++        definitions = []
++        for name in gate.grammar_check(text, path, definitions):
++            target_module[gate.PACKAGE + '.' + name] = mod
++    counts = Counter()
++    constants = []
++    for target in manifest['targets']:
++        mod = target_module[target]
++        constants.append(('theorem', 'user', mod, target))
++        counts[mod] += 1
++    for kind, origin, mod, name in manifest['compiled_inventory']:
++        constants.append((kind, origin, mod, name))
++        counts[mod] += 1
++    for kind, origin, mod, name in injections:
++        constants.append((kind, origin, mod, name))
++        counts[mod] += 1
++    lines = []
++    for mod in sorted(modules):
++        lines.append('MODULE|' + gate.encode(tuple(mod.split('.'))) + '|false|' + str(counts[mod]) + '|0')
++    lines.append('MODULE|' + gate.encode((gate.PACKAGE,)) + '|false|0|0')
++    for kind, origin, mod, name in constants:
++        lines.append('INV|' + kind + '|' + origin + '|' +
++                     gate.encode(tuple(mod.split('.')) if isinstance(mod, str) else mod) + '|' +
++                     gate.encode(tuple(name.split('.')) if isinstance(name, str) else name))
++    lines.append('AXIOMS|')
++    lines.append('CLOSURE|' + str(sum(counts.values())))
++    return '\n'.join(lines)
++
++
+ class RuntimeVersionTests(unittest.TestCase):
+     # These are orchestration tests with synthetic external process results;
+     # source validation, log writes, build deletion and receipts are real.
+@@ -146,8 +185,10 @@ class RuntimeVersionTests(unittest.TestCase):
+         self.root = Path(tmp.name) / 'formal'
+         shutil.copytree(ROOT, self.root, ignore=shutil.ignore_patterns('.lake', '__pycache__'))
+         previous = gate.ROOT
++        previous_helper = gate._core.ROOT
+         gate.ROOT = self.root
+-        self.addCleanup(lambda: setattr(gate, 'ROOT', previous))
++        gate._core.ROOT = self.root
++        self.addCleanup(lambda: (setattr(gate, 'ROOT', previous), setattr(gate._core, 'ROOT', previous_helper)))
+         manifest_path = self.root / 'manifest.json'
+         manifest = json.loads(manifest_path.read_text())
+         manifest['files'] = {p.relative_to(self.root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+@@ -162,25 +203,34 @@ class RuntimeVersionTests(unittest.TestCase):
+ 
+     def execute_synthetic(self, versions, version_exit=0, mutate_source=False, wrong_dependency=False,
+                           dirty_dependency=None, drift_dependency=False, env=None):
++        baseline = _synthetic_inventory_text(self.manifest, self.root)
++
+         def external_run(command, **kwargs):
+             self.calls.append(command)
+             if command == ['lake', 'env', 'lean', '--version']:
+                 text = versions[min(self.version_index, len(versions) - 1)] + '\n'
+                 self.version_index += 1
+                 return subprocess.CompletedProcess(command, version_exit, text)
+-            if command == ['lake', 'build'] and mutate_source:
+-                path = self.root / 'lake-manifest.json'
+-                path.write_bytes(path.read_bytes() + b'\n')
++            if command[:2] == ['lake', 'build']:
++                build = self.root / '.lake' / 'build'
++                build.mkdir(parents=True, exist_ok=True)
++                (build / '.synthetic').write_text('ok')
++                if mutate_source:
++                    path = self.root / 'lake-manifest.json'
++                    path.write_bytes(path.read_bytes() + b'\n')
++                return subprocess.CompletedProcess(command, 0, '')
+             label = Path(command[-1]).stem
+-            if label == 'Audit':
++            if label == 'Audit' or label.endswith('_axioms'):
+                 text = '\n'.join("'" + n + "' does not depend on any axioms" for n in self.manifest['targets'])
++            elif label == 'Inventory' or label == 'compiled_baseline':
++                text = baseline
+             elif label in ('false_fold', 'false_power'):
+                 return subprocess.CompletedProcess(command, 1, 'unsolved goals\n')
+             elif label in ('sorry', 'custom_imported', 'native'):
+                 forbidden = {'sorry': 'sorryAx', 'custom_imported': 'hiddenPremise', 'native': 'injected._nativeDecide_1'}[label]
+                 text = "'injected' depends on axioms: [" + forbidden + ']'
+             else:
+-                text = ''
++                text = baseline if 'Inventory' in str(command[-1]) else ''
+             return subprocess.CompletedProcess(command, 0, text)
+ 
+         def external_git(command, **kwargs):
+@@ -194,8 +244,17 @@ class RuntimeVersionTests(unittest.TestCase):
+             revision = self.manifest['dependency_revisions'][name]
+             return ('c' * 40 if wrong_dependency or drift_dependency and final_phase else revision) + '\n'
+ 
++        def stub_check_admission(text, label, injected, expected, targets, modules, allow_local, bound):
++            return dict(outcome='REJECTED_FOR_EXPECTED_REASON', injected='synthetic:' + label,
++                        violations=[code + ' synthetic' for code, _name, _private in expected])
++
++        def stub_compiled_admission(m, modules, baseline_report, bound, out):
++            return dict(baseline_sha256=baseline_report['sha256'], injections={})
++
+         with patch.object(gate.subprocess, 'run', side_effect=external_run), \
+              patch.object(gate.subprocess, 'check_output', side_effect=external_git), \
++             patch.object(gate._core, 'check_admission', side_effect=stub_check_admission), \
++             patch.object(gate._core, 'compiled_admission', side_effect=stub_compiled_admission), \
+              patch.dict(gate.os.environ, env or {}), \
+              contextlib.redirect_stdout(io.StringIO()):
+             return gate.execute(self.manifest, self.digest)
+@@ -239,7 +298,7 @@ class RuntimeVersionTests(unittest.TestCase):
+         wrong = 'Lean (version 4.34.1, x86_64-unknown-linux-gnu, commit ' + 'f' * 40 + ', Release)'
+         with self.assertRaisesRegex(ValueError, 'unexpected running Lean version'):
+             self.execute_synthetic([self.RELEASE, wrong])
+-        self.assertEqual(self.version_index, 2)
++        self.assertEqual(self.version_index, 3)
+         self.assertFalse(self.sentinel.exists())
+         self.assert_no_receipt()
+ 
+@@ -265,7 +324,7 @@ class RuntimeVersionTests(unittest.TestCase):
+         self.assertEqual(self.calls[0], ['lake', 'env', 'lean', '--version'])
+         self.assertEqual(self.calls[1], ['lake', 'build'])
+         self.assertEqual(self.calls[-1], ['lake', 'env', 'lean', '--version'])
+-        self.assertEqual(self.version_index, 2)
++        self.assertEqual(self.version_index, 3)
+         self.assertFalse(self.sentinel.exists())
+         self.assertEqual(receipt['lean_version'], self.RELEASE)
+         self.assertEqual(receipt['manifest_sha256'], self.digest)
+@@ -280,7 +339,7 @@ class RuntimeVersionTests(unittest.TestCase):
+         self.fixture()
+         with self.assertRaisesRegex(ValueError, 'unexpected running Lean version'):
+             self.execute_synthetic([self.RELEASE, self.RELEASE.replace('4.34.1', '4.34.10')])
+-        self.assertEqual(self.version_index, 2)
++        self.assertEqual(self.version_index, 3)
+         self.assert_no_receipt()
+ 
+     def test_source_change_during_build_still_refuses_receipt(self):
+@@ -326,7 +385,7 @@ class RuntimeGuardTests(unittest.TestCase):
+         self.fixture()
+         with self.assertRaisesRegex(ValueError, 'dependency worktree is not clean'):
+             self.execute_synthetic([self.RELEASE, self.RELEASE], dirty_dependency='final')
+-        self.assertEqual(self.version_index, 2)
++        self.assertEqual(self.version_index, 3)
+         self.assert_no_receipt()
+ 
+     def test_dependency_moved_during_execution_refuses_receipt(self):
+diff --git a/formal/tests/test_gate_compatibility.py b/formal/tests/test_gate_compatibility.py
+index 50ead82d..3b3183e7 100644
+--- a/formal/tests/test_gate_compatibility.py
++++ b/formal/tests/test_gate_compatibility.py
+@@ -50,6 +50,7 @@ class CompatibilityTests(unittest.TestCase):
+             root = pathlib.Path(td); (root / '.lake/formal-evidence').mkdir(parents=True)
+             gate.ROOT = root; helper.ROOT = root
+             gate.run = helper.run
++            gate._core.run = helper.run
+             gate.source_check = lambda: ({'dependency_revisions': {'x': 'a' * 40}}, 'digest')
+             gate.dependency_state = lambda m: dict(m['dependency_revisions'])
+             helper.execute = lambda m, d: {'manifest_sha256': d, 'logs': {}}
+-- 
+2.43.0
+
