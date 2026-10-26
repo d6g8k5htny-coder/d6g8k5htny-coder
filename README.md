@@ -25,6 +25,6 @@ For the longer technical account and research background, read the [historical r
 
 ## Contact and contributions
 
-Questions or corrections are welcome through the [main repository’s issues](https://github.com/d6g8k5htny-coder/main/issues). The [contributor guide](https://github.com/d6g8k5htny-coder/main/blob/main/CONTRIBUTING.md) explains how to propose a bounded task or review an exact object.
+Questions or corrections are welcome through the [main repository’s issues](https://github.com/d6g8k5htny-coder/main/issues). The [contributor guide](https://github.com/d6g8k5htny-coder/main/blob/main/CONTRIBUTING.md) explains how to propose a bounded task or review an exact object. Cursor cloud assists that cannot write to `main` leave paste-ready RESULT mirrors in [profile issue #5](https://github.com/d6g8k5htny-coder/d6g8k5htny-coder/issues/5) and [docs/CURSOR_ASSIST_PARTICIPATION_20261026.md](docs/CURSOR_ASSIST_PARTICIPATION_20261026.md); live coordination stays on [main#619](https://github.com/d6g8k5htny-coder/main/issues/619).
 
 [ORCID: 0009-0003-7329-7001](https://orcid.org/0009-0003-7329-7001)
